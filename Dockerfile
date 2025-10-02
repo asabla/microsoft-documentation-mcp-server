@@ -1,32 +1,29 @@
 # Use a Python image with uv pre-installed
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Setup a non-root user
+# Create non-root user first
 RUN groupadd --system --gid 999 nonroot \
- && useradd --system --gid 999 --uid 999 --create-home nonroot
+ && useradd  --system --gid 999 --uid 999 --create-home nonroot
 
-# install project into `/app`
 WORKDIR /app
 
 # Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE 1
-
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
-
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
-
-# Place executables in the environment at the front of the path
+ENV UV_COMPILE_BYTECODE=1
+# Put the venv ahead of PATH for runtime
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Use the non-root user to run our application
+# Switch early so the venv is created with correct ownership
 USER nonroot
+
+# Install deps using only the lock + pyproject; cache under the user's home
+RUN --mount=type=cache,target=/home/nonroot/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=/app/uv.lock,ro \
+    --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml,ro \
+    uv sync --locked --no-install-project --no-dev
+
+# Now add the project sources owned by nonroot, then install the project
+COPY --chown=999:999 . /app
+RUN --mount=type=cache,target=/home/nonroot/.cache/uv \
+    uv sync --locked --no-dev
 
 CMD ["uv", "run", "main.py"]
