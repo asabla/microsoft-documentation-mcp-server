@@ -1,0 +1,10 @@
+[project]
+name = "microsoft-documentation-mcp-server"
+version = "0.1.0"
+description = "A small example MCP server for talking and fetching information from Microsoft documentation."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.4",
+    "html2text>=2025.4.15",
+]
